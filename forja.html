@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>La Forja del Héroe | GUARDIANS OF LEGEND</title>
+    <style>
+        :root {
+            --gold: #d4af37; --gold-bright: #fceabb; --panel-bg: rgba(12, 10, 8, 0.95);
+            --border: #5d4e37; --text: #e8dcc4; --mana: #0044ff; --vida: #cc0000;
+            --rarity-novato: #ffffff; --rarity-avanzado: #0070dd; --rarity-experto: #a335ee;
+            --lvl-muggle: #666666; --lvl-novato: #ffffff; --lvl-avanzado: #0070dd;
+            --lvl-experto: #a335ee; --lvl-legendario: #d4af37; --bonus-color: #2ecc71; 
+        }
+
+        body {
+            margin: 0; padding: 20px; min-height: 100vh;
+            font-family: 'Palatino Linotype', serif; color: var(--text);
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('Fondo fortaleza.png');
+            background-size: cover; background-attachment: fixed; background-position: center;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        .header-area { text-align: center; margin-bottom: 20px; }
+        .header-area h1 { color: var(--gold); font-size: 3.5em; margin: 0; letter-spacing: 10px; text-transform: uppercase; }
+
+        .main-grid { display: grid; grid-template-columns: 380px 950px; gap: 25px; width: 1355px; max-width: 98vw; }
+
+        #panel-izquierdo, #panel-equipamiento { background: var(--panel-bg); border: 2px solid var(--border); border-radius: 8px; padding: 20px; min-height: 520px; box-sizing: border-box; }
+        #panel-equipamiento { display: none; position: relative; }
+
+        #equip-tooltip {
+            position: absolute; top: 10px; left: 0; width: 100%; text-align: center;
+            color: var(--gold-bright); font-weight: bold; height: 20px; z-index: 20;
+            text-shadow: 2px 2px 2px #000;
+        }
+
+        .equip-container { position: relative; width: 100%; height: 480px; display: flex; justify-content: center; align-items: center; }
+        .silueta-img { height: 100%; width: 100%; object-fit: contain; opacity: 0.4; }
+        
+        .e-slot {
+            position: absolute; width: 55px; height: 55px; background: rgba(0,0,0,0.4); border: 1px solid var(--gold); border-radius: 4px; 
+            display: flex; align-items: center; justify-content: center; font-size: 0.6em; color: var(--gold); z-index: 5;
+            text-align: center; text-transform: uppercase; overflow: hidden;
+        }
+        .btn-unequip {
+            display: none; position: absolute; top: -2px; right: -2px; background: #cc0000; color: white; border: none; border-radius: 50%;
+            width: 16px; height: 16px; cursor: pointer; font-size: 10px; z-index: 10;
+        }
+        .e-slot:hover .btn-unequip { display: block; }
+
+        .s-casco { top: 2%; left: 50%; transform: translateX(-50%); }
+        .s-collar { top: 16%; left: 50%; transform: translateX(-50%); }
+        .s-pecho { top: 32%; left: 50%; transform: translateX(-50%); }
+        .s-arma { top: 32%; left: 15%; }
+        .s-escudo { top: 32%; right: 15%; }
+        .s-anillo-der { top: 46%; left: 15%; width: 45px; height: 45px; } 
+        .s-anillo-izq { top: 46%; right: 15%; width: 45px; height: 45px; }
+        .s-cinto { top: 52%; left: 50%; transform: translateX(-50%); }
+        .s-pantalones { top: 68%; left: 50%; transform: translateX(-50%); }
+        .s-botas { bottom: 2%; left: 50%; transform: translateX(-50%); }
+
+        #ficha-hero { width: 950px; height: 520px; background: rgba(15, 15, 20, 0.98); border: 6px double var(--gold); border-radius: 10px; padding: 30px; box-sizing: border-box; position: relative; }
+        .f-img-box { width: 420px; height: 240px; border: 2px solid var(--gold); overflow: hidden; background: #000; position: relative;}
+        .rank-badge { position: absolute; top: 10px; right: 10px; padding: 5px 10px; background: rgba(0,0,0,0.8); border: 1px solid var(--gold); font-weight: bold; font-size: 0.8em; z-index: 10; }
+
+        .status-area { 
+            position: absolute; 
+            bottom: 30px; /* Bajado ligeramente para dar espacio al nuevo grosor */
+            left: 50px; 
+            width: 520px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; /* Aumentado el espacio entre barras */
+        }
+
+        .bar-container { 
+            height: 22px; /* Aumentado de 14px a 22px */
+            background: #111; 
+            border: 1px solid #444; 
+            border-radius: 11px; /* Ajustado para mantener la forma redondeada */
+            overflow: hidden; 
+            flex-grow: 1; 
+            position: relative; 
+            box-shadow: inset 0 0 5px #000; /* Añade profundidad */
+        }
+
+        .bar-fill { 
+            height: 100%; 
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+
+        .bar-text-overlay { 
+            position: absolute; 
+            width: 100%; 
+            text-align: center; 
+            font-size: 12px; /* Aumentado de 10px a 12px para mejor lectura */
+            line-height: 22px; /* Centrado vertical coincidiendo con la nueva altura */
+            font-weight: bold; 
+            color: white; 
+            text-shadow: 1px 1px 2px black; 
+            pointer-events: none; 
+            letter-spacing: 1px;
+        }
+
+        .btn-crear-box { position: absolute; bottom: 30px; right: 30px; width: 220px; height: 60px; }
+        #btn-crear { width: 100%; height: 100%; background: var(--gold); color: black; font-weight: bold; border: none; cursor: pointer; font-size: 1.1em; border-radius: 4px; }
+        
+        .b-val { color: var(--bonus-color); font-weight: bold; margin-left: 5px; font-size: 0.9em; }
+        .f-game-icons { position: absolute; bottom: 30px; right: 30px; display: none; align-items: center; gap: 20px; }
+        
+        /* Ajuste para que el botón de crear y los iconos no colisionen */
+        .btn-crear-box, .f-game-icons {
+            bottom: 35px;
+        }
+
+        #diario-container {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--border);
+            padding: 10px;
+            overflow-y: auto;
+            box-sizing: border-box;
+            font-family: 'Palatino Linotype', serif;
+            font-size: 0.9em;
+            color: #e8dcc4;
+            height: 180px;
+            width: 60%;
+        }
+
+
+
+        .gold-rect { display: flex; align-items: center; gap: 12px; border: 2px solid var(--gold); background: rgba(0,0,0,0.4); padding: 5px 15px; border-radius: 4px; }
+
+        .gallery-box { width: 1355px; background: var(--panel-bg); border: 2px solid var(--border); padding: 20px; border-radius: 8px; margin-top: 20px; box-sizing: border-box; min-height: 250px;}
+        .scroll-grid { display: grid; grid-template-rows: repeat(2, 110px); grid-auto-flow: column; gap: 15px; overflow-x: auto; padding: 10px 0 15px 0; }
+        .thumb { width: 110px; height: 110px; border: 2px solid #333; cursor: pointer; filter: grayscale(100%); transition: 0.3s; flex-shrink: 0; }
+        .thumb.active { filter: grayscale(0%); border-color: var(--gold-bright); border-width: 3px; }
+        #diario-container { display: none; height: 180px; overflow-y: auto; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); font-family: 'Courier New', monospace; font-size: 0.9em; }
+
+        .modal-inv { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
+        .inv-content { background: var(--panel-bg); border: 3px solid var(--gold); padding: 20px; width: 500px; border-radius: 10px; max-height: 85vh; overflow-y: auto; }
+        .inv-grid-section { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+        
+        .inv-card { 
+            aspect-ratio: 1/1; background: rgba(255,255,255,0.05); border: 2px solid transparent; 
+            border-radius: 4px; display: flex; align-items: center; justify-content: center; 
+            cursor: pointer; transition: 0.3s; filter: grayscale(100%); opacity: 0.6;
+        }
+        .inv-card:hover { filter: grayscale(0%); opacity: 1; border-color: var(--gold); transform: scale(1.05); }
+        .inv-card img { width: 80%; height: 80%; object-fit: contain; }
+        input, select { padding: 8px; background: #000; border: 1px solid var(--border); color: white; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+
+        
+        .habilidad-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 4px;
+            cursor: help;
+            transition: all 0.2s;
+        }
+        .habilidad-row:hover {
+            background: rgba(212, 175, 55, 0.15);
+        }
+        .habilidad-row span {
+            font-size: 1.1em;
+        }
+        .habilidad-row b {
+            color: var(--gold-bright);
+            font-size: 1em;
+        }
+
+        .h-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85em;
+        }
+        .h-row small {
+            color: #888;
+            margin-left: 5px;
+            font-size: 0.75em;
+        }
+        .h-row b {
+            color: var(--gold-bright);
+        }
+
+
+        /* Alineación de las cifras de Fuerza, Destreza, Inteligencia y Salud */
+    #ficha-hero b {
+        display: inline-block;
+        min-width: 30px; 
+        text-align: right;
+    }
+
+    </style>
+</head>
+<body onload="init()">
+
+    <div class="header-area"><h1 id="main-title">LA FORJA DEL HÉROE</h1></div>
+
+    <div class="main-grid">
+        <div id="panel-izquierdo">
+            <label>NOMBRE DEL HÉROE (Máx 18)</label>
+            <input type="text" id="in-name" maxlength="18" oninput="validarYSync()">
+            <label>CLASE</label>
+            <select id="in-class" onchange="toggleCF(); validarYSync();">
+                <option value="">Selecciona Clase...</option>
+                <option>Bárbaro</option><option>Paladín</option><option>Arquero</option><option>Pícaro</option><option>Mago</option><option>Cambiaformas</option>
+            </select>
+            <div id="cf-area" style="display:none; border:1px dashed var(--gold); padding:10px; margin-bottom:10px;">
+                <p style="text-align:center;">PUNTOS: <b id="pts-libres">9</b></p>
+                <div style="display:flex; justify-content:space-between;">FUE <div style="display:flex; gap:5px;"><button onclick="modCF('f',-1)">-</button><span id="v-f">0</span><button onclick="modCF('f',1)">+</button></div></div>
+                <div style="display:flex; justify-content:space-between;">DES <div style="display:flex; gap:5px;"><button onclick="modCF('d',-1)">-</button><span id="v-d">0</span><button onclick="modCF('d',1)">+</button></div></div>
+                <div style="display:flex; justify-content:space-between;">INT <div style="display:flex; gap:5px;"><button onclick="modCF('i',-1)">-</button><span id="v-i">0</span><button onclick="modCF('i',1)">+</button></div></div>
+                <div style="display:flex; justify-content:space-between;">SAL <div style="display:flex; gap:5px;"><button onclick="modCF('s',-1)">-</button><span id="v-s">0</span><button onclick="modCF('s',1)">+</button></div></div>                                          
+            </div>
+            <label>CORREO (Identificador)</label>
+            <input type="email" id="in-mail" oninput="validarYSync()">
+        </div>
+
+        <div id="panel-equipamiento">
+            <div id="equip-tooltip"></div>
+            <div class="equip-container">
+                <img src="silueta.png" class="silueta-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/742/742751.png'">
+                <div class="e-slot s-casco" id="slot-casco">CASCO</div>
+                <div class="e-slot s-collar" id="slot-collar">COLLAR</div>
+                <div class="e-slot s-pecho" id="slot-pecho">PETO</div>
+                <div class="e-slot s-arma" id="slot-arma">ARMA</div>
+                <div class="e-slot s-escudo" id="slot-escudo">ESCUDO</div>
+                <div class="e-slot s-anillo-izq" id="slot-anillo-izq">AN. I</div>
+                <div class="e-slot s-anillo-der" id="slot-anillo-der">AN. D</div>
+                <div class="e-slot s-cinto" id="slot-cinto">CINTO</div>
+                <div class="e-slot s-pantalones" id="slot-pantalones">PANT.</div>
+                <div class="e-slot s-botas" id="slot-botas">BOTAS</div>
+            </div>
+        </div>
+
+        <div id="ficha-hero">
+            <div style="display: flex; gap: 30px; align-items: stretch; margin-top: 10px;">
+                <div class="f-img-box">
+                    <div id="f-badge" class="rank-badge">MUGGLE</div>
+                    <img id="f-img" style="width:100%; height:100%; object-fit:cover;">
+                </div>
+                <div style="flex:1">
+                                <h2 id="f-name-display" style="font-size:2.5em; color:var(--gold); margin:0;">AVENTURERO</h2>
+                                <p id="f-class-display" style="color:var(--gold-bright); margin:0px 0;">CLASE: ---</p>
+                                <p id="lvl-label" style="color: var(--gold); "font-size: 0.9em; font-weight: bold; margin: 5px 0;">RANGO: MUGGLE</p>
+                    <div style="margin: 5px 0;">FUERZA: <b id="f-f">1</b> <span id="b-f" style="color:var(--bonus-color);"></span></div>
+                    <div style="margin: 5px 0;">DESTREZA: <b id="f-d">1</b> <span id="b-d" style="color:var(--bonus-color);"></span></div>
+                    <div style="margin: 5px 0;">INTELIGENCIA: <b id="f-i">1</b> <span id="b-i" style="color:var(--bonus-color);"></span></div>
+                    <div style="margin: 5px 0;">SALUD: <b id="f-s">1</b> <span id="b-s" style="color:var(--bonus-color);"></span></div>
+                    
+                    <div style="margin-top: 15px; border-top: 1px solid rgba(255,215,0,0.2); padding-top: 10px; font-size: 0.8em;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <span>ESCUDO <small style="color: #888; font-size: 0.9em;">(S×2 + F/2)</small>:</span>
+                            <b id="f-escudo">0</b>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>VELOCIDAD <small style="color: #888; font-size: 0.9em;">(D×2 + E/2)</small>:</span>
+                            <b id="f-velocidad">0</b>
+                        </div>
+                    </div>
+                </div>
+
+                    <fieldset style="border: 2px solid var(--border); background: rgba(0, 0, 0, 0.3); padding: 10px; margin: 15px 0; width: 20%; margin-left: 0.4px; margin-right: 0.1px; border-radius: 10px;">
+                        <legend style="color: var(--gold); font-weight: bold; padding: 0 10px; text-transform: uppercase; text-align: center;">Habilidades de Combate</legend>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 7px;">
+                            
+                            <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 5px; text-align: center;">
+                                <small style="color:#aaa; display:block; font-size:0.8em; margin-bottom:4px;">ATAQUE</small>
+                                <b id="h-frontal" style="font-size: 1.2em; color: #790f0bd0;">0</b>
+                            </div>
+
+                            <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 5px; text-align: center;">
+                                <small style="color:#aaa; display:block; font-size:0.8em; margin-bottom:4x;">BLOQUEO</small>
+                                <b id="h-defensa" style="font-size: 1.2em; color: #db741f;">0</b>
+                            </div>
+
+                            <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 5px; text-align: center;">
+                                <small style="color:#aaa; display:block; font-size:0.8em; margin-bottom:4px;">ATAQUE LEJANO</small>
+                                <b id="h-distancia" style="font-size: 1.2em; color: #1f22d6;">0</b>
+                            </div>
+
+                            <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 5px; text-align: center;">
+                                <small style="color:#aaa; display:block; font-size:0.8em; margin-bottom:4px;">ESQUIVAR ATAQUE</small>
+                                <b id="h-esquivar" style="font-size: 1.2em; color: #6bc7eb;">0</b>
+                            </div>                                    
+                                                        
+                            <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 5px; text-align: center;">
+                                <small style="color:#aaa; display:block; font-size:0.8em; margin-bottom:4px;">HECHIZO OFENSIVO</small>
+                                <b id="h-hechizo-off" style="font-size: 1.2em; color: #680960;">0</b>
+                            </div>
+
+                            <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 5px; text-align: center;">
+                                <small style="color:#aaa; display:block; font-size:0.8em; margin-bottom:4px;">RESISTENCIA MÁGICA</small>
+                                <b id="h-magia-def" style="font-size: 1.2em; color: #a757c0;">0</b>
+                            </div>
+                        </div>
+                </fieldset>            
+            </div>
+            <div class="status-area">
+                <div class="bar-container"><div class="bar-text-overlay" id="t-vida">100 / 100 VIDA</div><div id="bar-v" class="bar-fill" style="background:var(--vida); width:100%;"></div></div>
+                <div class="bar-container"><div class="bar-text-overlay" id="t-mana">0 / 100 MANÁ</div><div id="bar-m" class="bar-fill" style="background:var(--mana); width:0%;"></div></div>
+                <div class="bar-container"><div class="bar-text-overlay" id="t-exp">0 / 1000 EXP</div><div id="bar-e" class="bar-fill" style="background:var(--gold); width:0%;"></div></div>
+            </div>
+            <div class="btn-crear-box" id="box-crear"><button id="btn-crear" disabled onclick="forjarHeroe()">FORJAR HÉROE</button></div>
+            <div class="f-game-icons" id="f-game-icons">
+                <div class="gold-rect"><img src="bolsa_oro.png" width="40" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2489/2489756.png'"><span id="f-gold" style="font-size:1.8em; color:var(--gold-bright);">0</span></div>
+                <img src="mochila.png" width="50" onclick="toggleInv(true)" style="cursor:pointer;" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2922/2922510.png'">
+            </div>
+        </div>                 
+    </div>
+
+
+    <div class="gallery-box">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--gold); margin-bottom: 5px; padding-bottom: 5px;">
+            
+            <h3 id="bottom-title" style="color:var(--gold); font-size:1.5em; margin-top: 65px; ">SELECCIONA TU AVATAR</h3>
+            
+            <img src="arena_button.png" 
+                onclick="guardarYViajar()"
+                alt="Ir a la Arena"
+                style="height: 100px; cursor: pointer; transition: transform 0.2s;" 
+                onmouseover="this.style.transform='scale(1.1)'" 
+                onmouseout="this.style.transform='scale(1)'">
+        </div>
+
+        <div class="scroll-grid" id="avatar-grid"></div>
+        <div id="diario-container"></div>
+    </div>
+
+
+    <div id="modal-inventario" class="modal-inv">
+        <div class="inv-content">
+            <h3 style="color:var(--gold);">LA TIENDA <span style="float:right; cursor:pointer;" onclick="toggleInv(false)">&times;</span></h3>
+            <div id="item-tooltip" style="text-align:center; color:var(--gold-bright); height:20px; font-weight: bold;"></div>
+            <div style="color:var(--gold); margin:10px 0; border-bottom:1px solid var(--border);">NOVATO (500 Oro)</div><div class="inv-grid-section" id="grid-novato"></div>
+            <div style="color:var(--gold); margin:10px 0; border-bottom:1px solid var(--border);">AVANZADO (1000 Oro)</div><div class="inv-grid-section" id="grid-avanzado"></div>
+            <div style="color:var(--gold); margin:10px 0; border-bottom:1px solid var(--border);">EXPERTO (1500 Oro)</div><div class="inv-grid-section" id="grid-experto"></div>
+        </div>
+    </div>
+
+    
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script>
+    
+    let rangoLocalParaAviso = null;
+    let puntosTemporales = 0; // Variable global necesaria
+
+    const firebaseConfig = { apiKey: "AIzaSyBAqsMHIR2HadNL9GEHn_NlJADUYpS2wLU", databaseURL: "https://guardiansoflegend-default-rtdb.europe-west1.firebasedatabase.app", projectId: "guardiansoflegend", appId: "1:996513661642:web:5b80581a919d48f58eaa33" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const PRICES = { novato: 500, avanzado: 1000, experto: 1500 };
+    const CLASSES = { "Bárbaro": {f:4, d:2, i:1, s:3}, "Paladín": {f:3, d:3, i:2, s:2}, "Arquero": {f:2, d:4, i:2, s:2}, "Pícaro": {f:1, d:4, i:3, s:2}, "Mago": {f:1, d:2, i:5, s:2}, "Cambiaformas": {f:0, d:0, i:0, s:0} };
+    const SLOT_LABELS = { casco: "CASCO", collar: "COLLAR", pecho: "PETO", arma: "ARMA", escudo: "ESCUDO", cinto: "CINTO", "anillo-izq": "AN. I", "anillo-der": "AN. D", pantalones: "PANT.", botas: "BOTAS" };
+    const STAT_LABELS = { f: "FUE", d: "DES", i: "INT", s: "SAL" };
+    
+    const DB_ITEMS = [
+        {r:"novato", n:"Yelmo de Acero", t:"casco", a:"s", v:1, img:"novato_casco.png"},
+        {r:"novato", n:"Medalla del Sabio", t:"collar", a:"i", v:1, img:"novato_collar.png"},
+        {r:"novato", n:"Coraza de Pinchos", t:"pecho", a:"f", v:1, img:"novato_peto.png"},
+        {r:"novato", n:"Espada Corta", t:"arma", a:"f", v:1, img:"novato_arma.png"},
+        {r:"novato", n:"Escudo de Roble", t:"escudo", a:"s", v:1, img:"novato_escudo.png"},
+        {r:"novato", n:"Cinturón de Pinchos", t:"cinto", a:"f", v:1, img:"novato_cinto.png"},
+        {r:"novato", n:"Sello de Plata", t:"anillo-izq", a:"i", v:1, img:"novato_mano_izq.png"},
+        {r:"novato", n:"Guante de Pinchos", t:"anillo-der", a:"f", v:1, img:"novato_mano_der.png"},
+        {r:"novato", n:"Pantalones Ligeros", t:"pantalones", a:"d", v:1, img:"novato_pantalones.png"},
+        {r:"novato", n:"Botas Ligeras", t:"botas", a:"d", v:1, img:"novato_botas.png"},
+        {r:"avanzado", n:"Casco Vikingo", t:"casco", a:"f", v:2, img:"avanzado_casco.png"},
+        {r:"avanzado", n:"Amuleto Eterno", t:"collar", a:"s", v:2, img:"avanzado_collar.png"},
+        {r:"avanzado", n:"Armadura Ligera", t:"pecho", a:"d", v:2, img:"avanzado_peto.png"},
+        {r:"avanzado", n:"Escudo Arrojadizo", t:"escudo", a:"i", v:2, img:"avanzado_escudo.png"},
+        {r:"avanzado", n:"Escudo de Luz", t:"escudo", a:"i", v:2, img:"avanzado_escudo2.png"},
+        {r:"avanzado", n:"Cinturón de Gemas", t:"cinto", a:"i", v:2, img:"avanzado_cinto.png"},
+        {r:"avanzado", n:"Brazalete de Pinchos", t:"anillo-izq", a:"f", v:2, img:"avanzado_mano_izq.png"},
+        {r:"avanzado", n:"Guante Certero", t:"anillo-der", a:"d", v:2, img:"avanzado_mano_der.png"},
+        {r:"avanzado", n:"Grebas de Cuero", t:"pantalones", a:"s", v:2, img:"avanzado_pantalones.png"},
+        {r:"avanzado", n:"Botas del Ángel", t:"botas", a:"i", v:2, img:"avanzado_botas.png"},
+        {r:"experto", n:"Sombrero Arcano", t:"casco", a:"i", v:3, img:"experto_casco.png"},
+        {r:"experto", n:"Colgante de Ámbar", t:"collar", a:"i", v:3, img:"experto_collar.png"},
+        {r:"experto", n:"Cota de Malla", t:"pecho", a:"s", v:3, img:"experto_peto.png"},
+        {r:"experto", n:"Arco Largo", t:"arma", a:"f", v:3, img:"experto_arma.png"},
+        {r:"experto", n:"Hacha Doble", t:"arma", a:"f", v:3, img:"experto_arma2.png"},
+        {r:"experto", n:"Cinturón de Placas", t:"cinto", a:"s", v:3, img:"experto_cinto.png"},
+        {r:"experto", n:"Guante Élfico", t:"anillo-izq", a:"d", v:3, img:"experto_mano_izq.png"},
+        {r:"experto", n:"Brazalete del Brujo", t:"anillo-der", a:"i", v:3, img:"experto_mano_der.png"},
+        {r:"experto", n:"Pantalón de Pinchos", t:"pantalones", a:"f", v:3, img:"experto_pantalones.png"},
+        {r:"experto", n:"Zapatos del Vampiro", t:"botas", a:"s", v:3, img:"experto_botas.png"}
+    ];
+
+    let cf = {f:0, d:0, i:0, s:0}, points = 9, personajeCreado = false, equipado = [], mochila = { novato: [], avanzado: [], experto: [] };
+    let cargandoPersonaje = false, oroActual = 0;
+
+    function init() {
+        const grid = document.getElementById('avatar-grid');
+        for(let i=1; i<=62; i++) {
+            const div = document.createElement('div'); div.className = 'thumb';
+            div.innerHTML = `<img src="AVT_${i}.jpg" style="width:100%;height:100%;object-fit:cover" onerror="this.src='https://via.placeholder.com/110'">`;
+            div.onclick = () => { if(personajeCreado) return; document.querySelectorAll('.thumb').forEach(t=>t.classList.remove('active')); div.classList.add('active'); document.getElementById('f-img').src = `AVT_${i}.jpg`; validarYSync(); };
+            grid.appendChild(div);
+        }
+        mochila = { novato: [], avanzado: [], experto: [] };
+        DB_ITEMS.forEach((it, idx) => mochila[it.r].push({...it, id: 'db-'+idx}));
+        renderInv();
+        const urlParams = new URLSearchParams(window.location.search);
+        const mailUrl = urlParams.get('mail');
+        if (mailUrl) { document.getElementById('in-mail').value = mailUrl; verificarExistencia(mailUrl); }
+    }
+
+    function showTooltip(it, targetId) {
+        const statName = STAT_LABELS[it.a] || it.a.toUpperCase();
+        document.getElementById(targetId).innerText = `${it.n} (+${it.v} ${statName}) - [${PRICES[it.r]} Oro]`;
+    }
+
+    function hideTooltip(targetId) { document.getElementById(targetId).innerText = ""; }
+
+    function verificarExistencia(mail) {
+        const emailKey = mail.toLowerCase().replace(/\./g, '_');
+        db.ref('jugadores/' + emailKey).once('value', (snapshot) => {
+            const datos = snapshot.val();
+            if (datos) {
+                cargandoPersonaje = true;
+                document.getElementById('in-name').value = datos.nombre;
+                document.getElementById('in-class').value = datos.clase;
+                document.getElementById('f-img').src = datos.avatar;
+                if(datos.clase === "Cambiaformas") cf = datos.statsBase;
+                if (datos.equipoActual) {
+                    datos.equipoActual.forEach(nombreItem => {
+                        ['novato', 'avanzado', 'experto'].forEach(r => {
+                            const idx = mochila[r].findIndex(m => m.n === nombreItem);
+                            if (idx !== -1) { const it = mochila[r][idx]; it.from = r; mochila[r].splice(idx, 1); setEquippedSlot(it); }
+                        });
+                    });
+                }
+                // Actualizar visualmente el rango al cargar
+                const rangoCargado = getRango(datos.exp || 0);
+                document.getElementById('f-badge').innerText = rangoCargado;
+                document.getElementById('lvl-label').innerText = "RANGO: " + rangoCargado;
+                
+                personajeCreado = true; forjarHeroe(true); renderInv();
+                setTimeout(() => { cargandoPersonaje = false; }, 1000);
+            }
+        });
+    }
+
+    function mejorarStat(stat) {
+        if (puntosTemporales <= 0) return;
+
+        const email = document.getElementById('in-mail').value.toLowerCase().replace(/\./g, '_');
+        const userRef = db.ref('jugadores/' + email);
+
+        userRef.transaction((player) => {
+            if (player) {
+                if (!player.statsBase) player.statsBase = {f:1, d:1, i:1, s:1};
+                player.statsBase[stat] = (player.statsBase[stat] || 0) + 1;
+                
+                if(stat === 's') player.vida = (player.vida || 0) + 100;
+                if(stat === 'i') player.mana = (player.mana || 0) + 100;
+            }
+            return player;
+        }, (error, committed, snapshot) => {
+            if (committed) {
+                puntosTemporales--;
+                document.getElementById('pts-up-disponibles').innerText = puntosTemporales;
+                
+                // --- ESTA ES LA CORRECCIÓN: Actualización visual inmediata ---
+                const nuevoValor = snapshot.val().statsBase[stat];
+                const elementoFicha = document.getElementById(`f-${stat}`);
+                if (elementoFicha) {
+                    elementoFicha.innerText = nuevoValor;
+                }
+                // -------------------------------------------------------------
+
+                if (puntosTemporales <= 0) {
+                    document.querySelectorAll('.btn-plus').forEach(b => b.disabled = true);
+                    document.getElementById('btn-cerrar-up').style.display = 'block';
+                }
+                recalc(); 
+            }
+        });
+    }
+
+    function escucharAlMaestro() {
+        const email = document.getElementById('in-mail').value.toLowerCase().replace(/\./g, '_');
+        db.ref('jugadores/' + email).on('value', (snapshot) => {
+            const datos = snapshot.val();
+            if (datos.statsBase) {
+                // Esto vincula los datos de Firebase con el texto de tu ficha
+                document.getElementById('f-f').innerText = datos.statsBase.f || 0;
+                document.getElementById('f-d').innerText = datos.statsBase.d || 0;
+                document.getElementById('f-i').innerText = datos.statsBase.i || 0;
+                document.getElementById('f-s').innerText = datos.statsBase.s || 0;
+                
+                // Actualizamos la variable local para que los cálculos de vida/mana sean correctos
+                cf = { ...datos.statsBase };
+            }
+
+            if(!datos) return;
+        
+            document.getElementById('f-name-display').innerText = (datos.nombre || "AVENTURERO").toUpperCase();
+            document.getElementById('f-class-display').innerText = "CLASE: " + (datos.clase || "---").toUpperCase();
+        
+            oroActual = datos.oro || 0;
+            document.getElementById('f-gold').innerText = oroActual;
+            
+            // Actualizar rango en tiempo real
+            const r = getRango(datos.exp || 0);
+            
+            // Verificamos si es un ascenso real:
+            // Si rangoLocalParaAviso no es null (no es la primera carga)
+            // y el rango nuevo (r) es distinto al que teníamos guardado
+            if (rangoLocalParaAviso !== null && r !== rangoLocalParaAviso) {
+                // Solo activamos si el rango ha subido. 
+                // Para simplificar, comparamos si es distinto.
+                abrirInterfazMejora(r); 
+            }
+        
+            // Actualizamos siempre la marca local con el rango más reciente de Firebase
+            rangoLocalParaAviso = r;
+            
+            
+            
+            document.getElementById('f-badge').innerText = r;
+            document.getElementById('lvl-label').innerText = "RANGO: " + r;
+        
+            actualizarBarras(datos);
+
+            // Mostrar el diario y la arena
+            document.getElementById('diario-container').style.display = 'block';
+            document.getElementById('box-arena').style.display = 'flex';
+
+            // Actualizar Stats de la Ficha (Asegura IDs f-f, f-d, f-i, f-s)
+            if(datos.statsBase) {
+                document.getElementById('f-f').innerText = datos.statsBase.f || 0;
+                document.getElementById('f-d').innerText = datos.statsBase.d || 0;
+                document.getElementById('f-i').innerText = datos.statsBase.i || 0;
+                document.getElementById('f-s').innerText = datos.statsBase.s || 0;
+                cf = { ...datos.statsBase };
+            }
+
+            // Renderizar el historial
+            renderizarDiarioLimpio(datos.historial);
+
+            // Recalcular todo
+            recalc();
+        });
+                        
+    }
+
+    function renderizarDiario(historial) {
+        const container = document.getElementById('diario-container');
+        container.innerHTML = "";
+        
+        // Convertimos a array (Firebase a veces envía objetos)
+        const entradas = Object.values(historial);
+                
+        entradas.forEach(entry => {
+            const div = document.createElement('div');
+            div.className = "log-entry"; // Usamos una clase para el CSS
+            div.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
+            div.style.padding = "4px 0";
+            
+            if (typeof entry === 'object' && entry.hora) {
+                div.innerHTML = `<span style="color:var(--gold); font-weight:bold;">[${entry.hora}]</span> ${entry.texto}`;
+            } else {
+                div.innerHTML = entry; // Soporte para el mensaje de bienvenida actual
+            }
+            container.appendChild(div);
+        });
+        container.scrollTop = container.scrollHeight;
+    }
+
+
+    function abrirInterfazMejora(nuevoRango) {
+        // 1. Configuramos los puntos que se darán (ejemplo: 2 puntos)
+        puntosTemporales = 2; 
+        document.getElementById('pts-up-disponibles').innerText = puntosTemporales;
+        
+        // 2. Personalizamos el mensaje del modal
+        document.getElementById('msg-ascenso').innerText = `¡HAS ASCENDIDO A RANGO ${nuevoRango}!`;
+        
+        // 3. Mostramos el modal (cambiando el display de 'none' a 'flex')
+        document.getElementById('modal-subida').style.display = 'flex';
+        
+        // 4. Nos aseguramos de que los botones estén activos
+        document.querySelectorAll('.btn-plus').forEach(b => b.disabled = false);
+        document.getElementById('btn-cerrar-up').style.display = 'none';
+    }
+
+
+    function equipItem(id, sec) {
+        const idx = mochila[sec].findIndex(x => x.id === id); 
+        const it = mochila[sec][idx];
+        const rangoH = document.getElementById('f-badge').innerText;
+        const RANGOS_VAL = { "MUGGLE": 0, "NOVATO": 1, "AVANZADO": 2, "EXPERTO": 3, "LEGENDARIO": 4 };
+    
+        if (RANGOS_VAL[rangoH] < RANGOS_VAL[it.r.toUpperCase()]) { 
+            alert("Rango insuficiente."); 
+            return;
+        }
+
+        const coste = PRICES[it.r];
+        if (oroActual < coste) {
+            alert("VUELVE CUANDO PUEDAS PAGARME");
+            return;
+        }
+
+        oroActual -= coste;
+        actualizarOroDB();
+
+        const ocupado = equipado.find(x => x.t === it.t); 
+        if(ocupado) unequipItem(ocupado.id);
+    
+        it.from = sec; 
+        mochila[sec].splice(idx, 1);
+        setEquippedSlot(it);
+        renderInv(); 
+        recalc(); 
+        hideTooltip('item-tooltip');
+    }
+
+    function unequipItem(id) {
+        const idx = equipado.findIndex(x => x.id === id); 
+        const it = equipado[idx];
+        
+        // Lógica de reembolso: Precio original - 100 de oro
+        const reembolso = Math.max(0, PRICES[it.r] - 100);
+        oroActual += reembolso;
+        
+        actualizarOroDB();
+        
+        // Devolver a la mochila y limpiar el slot
+        mochila[it.from].push(it); 
+        equipado.splice(idx, 1);
+        document.getElementById(`slot-${it.t}`).innerHTML = SLOT_LABELS[it.t];
+        
+        hideTooltip('equip-tooltip'); 
+        renderInv(); 
+        recalc();
+    }
+
+    function actualizarOroDB() {
+        const email = document.getElementById('in-mail').value.toLowerCase().replace(/\./g, '_');
+        db.ref('jugadores/' + email).update({ oro: oroActual });
+    }
+
+    function setEquippedSlot(it) {
+        equipado.push(it);
+        const slot = document.getElementById(`slot-${it.t}`);
+        const itJson = JSON.stringify(it).replace(/"/g, '&quot;');
+        slot.innerHTML = `<img src="${it.img}" style="width:100%" onmouseover="showTooltip(${itJson}, 'equip-tooltip')" onmouseout="hideTooltip('equip-tooltip')"><button class="btn-unequip" onclick="unequipItem('${it.id}')">X</button>`;
+    }
+
+    function getRango(exp) {
+        if (exp >= 4000) return "LEGENDARIO";
+        if (exp >= 3000) return "EXPERTO";
+        if (exp >= 2000) return "AVANZADO";
+        if (exp >= 1000) return "NOVATO";
+        return "MUGGLE";
+    }
+
+    function actualizarBarras(datos) {
+        const sBase = datos.statsBase?.s || 0; 
+        const sBonus = datos.bonusEquipo?.s || 0;
+        const vMax = (sBase + sBonus) * 100 || 100;
+        document.getElementById('t-vida').innerText = `${datos.vida || 0} / ${vMax} VIDA`;
+        document.getElementById('bar-v').style.width = Math.min(100, (datos.vida || 0) / vMax * 100) + "%";
+
+        const iBase = datos.statsBase?.i || 0;
+        const iBonus = datos.bonusEquipo?.i || 0;
+        const mMax = (iBase + iBonus) * 100 || 100;
+        document.getElementById('t-mana').innerText = `${datos.mana || 0} / ${mMax} MANÁ`;
+        document.getElementById('bar-m').style.width = Math.min(100, (datos.mana || 0) / mMax * 100) + "%";
+        
+        const exp = datos.exp || 0;
+        let color = "var(--lvl-muggle)", minR = 0, maxR = 1000;
+        const rangoActual = getRango(exp);
+        
+        if (exp >= 4000) { color = "var(--lvl-legendario)"; minR = 4000; maxR = 5000; }
+        else if (exp >= 3000) { color = "var(--lvl-experto)"; minR = 3000; maxR = 4000; }
+        else if (exp >= 2000) { color = "var(--lvl-avanzado)"; minR = 2000; maxR = 3000; }
+        else if (exp >= 1000) { color = "var(--lvl-novato)"; minR = 1000; maxR = 2000; }
+        
+        // Actualizar textos de rango en la interfaz
+        document.getElementById('f-badge').innerText = rangoActual;
+        document.getElementById('lvl-label').innerText = "RANGO: " + rangoActual;
+
+        const pctExp = ((exp - minR) / (maxR - minR)) * 100;
+        document.getElementById('bar-e').style.width = Math.min(100, pctExp) + "%";
+        document.getElementById('bar-e').style.backgroundColor = color;
+        document.getElementById('t-exp').innerText = `${exp} / ${maxR} EXP`;
+    }
+
+    function recalc() {
+        // --- 1. CÁLCULO DE BONUS (Tu lógica original intacta) ---
+        const bonus = {f:0, d:0, i:0, s:0};
+        
+        // Mapa para asegurar compatibilidad con objetos antiguos "Fuerza" y nuevos "f"
+        const map = {"Fuerza":"f", "Destreza":"d", "Inteligencia":"i", "Salud":"s", "f":"f", "d":"d", "i":"i", "s":"s"};
+
+        if(typeof equipado !== 'undefined') {
+            equipado.forEach(it => {
+                // Objetos con formato {a, v}
+                if(it.a && it.v) {
+                    let k = map[it.a]; 
+                    if(k) bonus[k] += parseInt(it.v);
+                }
+                // Objetos con formato {b: {f:1}}
+                if(it.b) {
+                    ['f','d','i','s'].forEach(k => { if(it.b[k]) bonus[k] += it.b[k]; });
+                }
+            });
+        }
+
+        // --- 2. OBTENCIÓN DE BASE (Tu lógica original intacta) ---
+        const c = document.getElementById('in-class').value;
+        const base = (c === "Cambiaformas" && typeof cf !== 'undefined') ? cf : ((typeof CLASSES !== 'undefined' && CLASSES[c]) || {f:0, d:0, i:0, s:0});
+
+        // --- 3. ACTUALIZACIÓN VISUAL (Tu estética original) ---
+        // Mantenemos que se vea "5 (+2)" en la ficha
+        ['f','d','i','s'].forEach(k => { 
+            if(document.getElementById(`f-${k}`)) document.getElementById(`f-${k}`).innerText = base[k];
+            if(document.getElementById(`b-${k}`)) document.getElementById(`b-${k}`).innerText = bonus[k] > 0 ? ` (+${bonus[k]})` : ""; 
+        });
+
+        // --- 4. CÁLCULOS INTERNOS (LA CORRECCIÓN) ---
+        // Aquí sumamos Base + Bonus para usarlo en las fórmulas, sin afectar lo que se ve
+        const tF = (parseInt(base.f) || 0) + bonus.f;
+        const tD = (parseInt(base.d) || 0) + bonus.d;
+        const tI = (parseInt(base.i) || 0) + bonus.i;
+        const tS = (parseInt(base.s) || 0) + bonus.s;
+
+        // --- 5. FÓRMULAS DERIVADAS (Usando los Totales tF, tS...) ---
+        
+        // ESCUDO: (Salud Total * 2) + (Fuerza Total / 2)
+        const valEscudo = Math.floor((tS * 2) + (tF / 2));
+        if(document.getElementById('f-escudo')) document.getElementById('f-escudo').innerText = valEscudo;
+
+        // VELOCIDAD: (Destreza Total * 2) + (Escudo / 2)
+        const valVelocidad = Math.floor((tD * 2) + (valEscudo / 2));
+        if(document.getElementById('f-velocidad')) document.getElementById('f-velocidad').innerText = valVelocidad;
+
+        // HABILIDADES DE COMBATE (Usando Totales)
+        if(document.getElementById('h-frontal')) document.getElementById('h-frontal').innerText = Math.floor((tF * 2) + (tD / 2));
+        if(document.getElementById('h-distancia')) document.getElementById('h-distancia').innerText = Math.floor((tD * 2) + (tF / 2));
+        if(document.getElementById('h-hechizo-off')) document.getElementById('h-hechizo-off').innerText = Math.floor((tI * 2) + (tD / 2));
+        if(document.getElementById('h-defensa')) document.getElementById('h-defensa').innerText = Math.floor((valEscudo * 2) + (tD / 2));
+        if(document.getElementById('h-esquivar')) document.getElementById('h-esquivar').innerText = Math.floor((tD * 2) + (tI / 2));
+        if(document.getElementById('h-magia-def')) document.getElementById('h-magia-def').innerText = Math.floor((tI * 2) + (valEscudo / 2));
+
+        // --- 6. GUARDADO EN FIREBASE (Para el Maestro) ---
+        if(typeof personajeCreado !== 'undefined' && personajeCreado && typeof cargandoPersonaje !== 'undefined' && !cargandoPersonaje) {
+            const email = document.getElementById('in-mail').value.toLowerCase().replace(/\./g, '_');
+            
+            // Enviamos bonus y TAMBIÉN los stats derivados calculados para que el Pasadizo los vea bien
+            db.ref('jugadores/' + email).update({ 
+                bonusEquipo: bonus, 
+                equipoActual: equipado.map(e => e.n),
+                statsDerivados: { escudo: valEscudo, velocidad: valVelocidad },
+                statsCombate: {
+                    frontal: Math.floor((tF * 2) + (tD / 2)),
+                    defensa: Math.floor((valEscudo * 2) + (tD / 2)),
+                    distancia: Math.floor((tD * 2) + (tF / 2)),
+                    esquiva: Math.floor((tD * 2) + (tI / 2)),
+                    magico: Math.floor((tI * 2) + (tD / 2)),
+                    iniciativa: Math.floor((tI * 2) + (valEscudo / 2))
+                }
+            });
+        }
+    }
+
+    function forjarHeroe(esCarga = false) {
+        personajeCreado = true;
+        document.getElementById('bottom-title').innerText = "DIARIO DE AVENTURAS";
+        document.getElementById('panel-izquierdo').style.display = 'none';
+        document.getElementById('box-crear').style.display = 'none';
+        document.getElementById('panel-equipamiento').style.display = 'block';
+        document.getElementById('f-game-icons').style.display = 'flex';
+        document.getElementById('avatar-grid').style.display = 'none';
+        document.getElementById('diario-container').style.display = 'block';
+        if (!esCarga) { registrarEnFirebase(); }
+        recalc(); escucharAlMaestro();
+    }
+
+    function registrarEnFirebase() {
+        const email = document.getElementById('in-mail').value.toLowerCase().replace(/\./g, '_');
+        const c = document.getElementById('in-class').value;
+        const statsBase = (c === "Cambiaformas") ? cf : CLASSES[c];
+        
+        db.ref('jugadores/' + email).set({
+            nombre: document.getElementById('in-name').value,
+            clase: c, 
+            avatar: document.getElementById('f-img').src,
+            vida: (statsBase.s || 1) * 100, 
+            mana: (statsBase.i || 1) * 100, 
+            oro: 0, 
+            exp: 0,
+            puntosAumento: 0,
+            statsBase: statsBase,
+            bonusEquipo: { f:0, d:0, i:0, s:0, frontal:0, defensa:0, distancia:0, esquiva:0, magico:0, iniciativa:0 },
+            statsDerivados: {escudo:0, velocidad:0},
+            equipoActual: [],
+            historial: [`<span class="log-time">[SISTEMA]</span> ¡Bienvenido a la leyenda, ${document.getElementById('in-name').value}!`]
+        });
+    }
+
+    function renderInv() {
+        ['novato', 'avanzado', 'experto'].forEach(sec => {
+            const container = document.getElementById(`grid-${sec}`); 
+            container.innerHTML = '';
+            mochila[sec].forEach(it => {
+                const div = document.createElement('div'); div.className = `inv-card ${it.r}`;
+                div.innerHTML = `<img src="${it.img}">`;
+                div.onmouseover = () => showTooltip(it, 'item-tooltip');
+                div.onmouseout = () => hideTooltip('item-tooltip');
+                div.onclick = () => equipItem(it.id, sec);
+                container.appendChild(div);
+            });
+        });
+    }
+
+    function validarYSync() {
+        const n = document.getElementById('in-name').value; const c = document.getElementById('in-class').value;
+        const m = document.getElementById('in-mail').value; const a = document.getElementById('f-img').src;
+        document.getElementById('btn-crear').disabled = !(n && c && m && a);
+        document.getElementById('f-name-display').innerText = (n || "AVENTURERO").toUpperCase();
+        document.getElementById('f-class-display').innerText = "CLASE: " + (c || "---").toUpperCase();
+        recalc();
+    }
+
+    function toggleInv(s) { document.getElementById('modal-inventario').style.display = s ? 'flex' : 'none'; }
+    function toggleCF() { document.getElementById('cf-area').style.display = (document.getElementById('in-class').value === "Cambiaformas") ? 'block' : 'none'; }
+    function modCF(st, val) { if(val > 0 && points <= 0) return; if(val < 0 && cf[st] <= 0) return; cf[st] += val; points -= val; document.getElementById('pts-libres').innerText = points; document.getElementById(`v-${st}`).innerText = cf[st]; validarYSync(); }
+
+    
+    // 1. Función para viajar a la Arena
+    function irALaArena() {
+    window.location.href = 'arena.html';
+    } 
+    
+    // 2. Función de Renderizado del Diario (Sustituye la que tengas)
+    function renderizarDiarioLimpio(historial) {
+        const container = document.getElementById('diario-container');
+        if (!historial) return;
+        
+        container.innerHTML = ""; 
+        const entradas = Object.values(historial);
+
+        entradas.forEach(entry => {
+            const div = document.createElement('div');
+            div.style.marginBottom = "5px";
+            div.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
+            
+            if (typeof entry === 'object' && entry.hora) {
+                div.innerHTML = `<span style="color:var(--gold); font-weight:bold;">[${entry.hora}]</span> ${entry.texto}`;
+            } else {
+                div.innerHTML = entry;
+            }
+            container.appendChild(div);
+        });
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function guardarYViajar() {
+        // 1. Busca el correo que tienes escrito en la ficha
+        var emailFicha = document.getElementById('in-mail').value;
+        
+        // 2. Si hay algo escrito, guárdalo en la memoria del navegador
+        if (emailFicha) {
+            localStorage.setItem("usuario_email", emailFicha);
+        // 3. Viaja a la Arena
+        window.location.href = 'arena.html';
+        }
+    }
+
+</script>
+
+    <div id="modal-subida" style="display: none; position: fixed; z-index: 5000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center;">
+        <div style="background: var(--panel-bg); border: 4px double var(--gold); padding: 30px; text-align: center; border-radius: 15px; width: 350px;">
+            <h2 style="color: var(--gold); margin-top: 0;">¡ASCENSO DE RANGO!</h2>
+            <p id="msg-ascenso">Has alcanzado un nuevo nivel</p>
+            <p>Puntos disponibles: <b id="pts-up-disponibles" style="font-size: 1.5em; color: var(--gold-bright);">2</b></p>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px; margin: 20px 0;">
+                <div style="display:flex; justify-content:space-between;">FUE <button onclick="mejorarStat('f')" class="btn-plus">+</button></div>
+                <div style="display:flex; justify-content:space-between;">DES <button onclick="mejorarStat('d')" class="btn-plus">+</button></div>
+                <div style="display:flex; justify-content:space-between;">INT <button onclick="mejorarStat('i')" class="btn-plus">+</button></div>
+                <div style="display:flex; justify-content:space-between;">SAL <button onclick="mejorarStat('s')" class="btn-plus">+</button></div>
+            </div>
+            
+            <button id="btn-cerrar-up" onclick="document.getElementById('modal-subida').style.display='none'" style="display:none; background:var(--gold); border:none; padding:10px; width:100%; cursor:pointer; font-weight:bold;">CONTINUAR</button>
+        </div>
+    </div>
+
+    <style>
+        .btn-plus { background: var(--gold); border: none; width: 30px; height: 30px; cursor: pointer; font-weight: bold; border-radius: 4px; }
+        .btn-plus:disabled { background: #444; cursor: not-allowed; }
+    </style>
+
+    <div id="box-arena" style="display: none;"></div>
+</body>
+</html>
