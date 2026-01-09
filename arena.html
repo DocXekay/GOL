@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Arena de Combate | GUARDIANS OF LEGEND</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        /* --- ESTILOS GENERALES (Misma estética que Forja/Pasadizo) --- */
+        :root { 
+            --gold: #d4af37; --gold-bright: #fceabb; --bg: #0a0a0c; --panel: #1a1a1e; 
+            --text: #e8dcc4; --error: #ff4444; --success: #2ecc71; --mana: #0044ff;
+        }
+        body { 
+            background: var(--bg); 
+            background-image: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url('Fondo fortaleza.png');
+            background-size: cover; background-attachment: fixed;
+            color: var(--text); font-family: 'Palatino Linotype', serif; margin: 0; padding: 20px; 
+        }
+        h1 { color: var(--gold); text-align: center; text-transform: uppercase; letter-spacing: 5px; margin-bottom: 30px; border-bottom: 2px solid var(--gold); padding-bottom: 15px; }
+
+        /* BOTÓN VOLVER */
+        .btn-volver {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(0,0,0,0.5); border: 1px solid var(--gold); color: var(--gold);
+            padding: 8px 15px; cursor: pointer; text-decoration: none; font-weight: bold;
+        }
+        .btn-volver:hover { background: var(--gold); color: #000; }
+
+        /* --- TABLA DE JUGADORES --- */
+        .table-container {
+            width: 100%; max-width: 1200px; margin: 0 auto;
+            background: rgba(26, 26, 30, 0.95); border: 1px solid var(--gold);
+            border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        table { width: 100%; border-collapse: collapse; }
+        thead { background: rgba(212, 175, 55, 0.1); border-bottom: 2px solid var(--gold); }
+        th { padding: 15px; text-align: left; color: var(--gold); font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }
+        td { padding: 12px 15px; border-bottom: 1px solid #333; vertical-align: middle; }
+        
+        /* Filas interactivas */
+        tbody tr { transition: background 0.2s; cursor: pointer; }
+        tbody tr:hover { background: rgba(255, 255, 255, 0.1); }
+
+        .td-avatar img { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--gold); object-fit: cover; }
+        .td-info { line-height: 1.2; }
+        .td-realname { display: block; font-weight: bold; color: #fff; font-size: 0.9em; }
+        .td-heroname { font-size: 0.8em; color: var(--gold); text-transform: uppercase; }
+
+        /* --- MODAL FICHA (ESTILO COMPLETO) --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 100;
+            display: none; justify-content: center; align-items: center;
+            backdrop-filter: blur(5px); padding: 20px;
+        }
+        .ficha-card { 
+            background: var(--panel); border: 2px solid var(--gold); padding: 25px; 
+            border-radius: 8px; width: 100%; max-width: 450px; 
+            position: relative; box-shadow: 0 0 40px rgba(212, 175, 55, 0.3);
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .btn-close {
+            position: absolute; top: 10px; right: 15px;
+            background: none; border: none; color: #666; font-size: 2em; cursor: pointer;
+        }
+        .btn-close:hover { color: var(--error); }
+
+        /* CABECERA FICHA */
+        .info-header { display: flex; gap: 15px; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 15px; }
+        .avatar-lg { width: 80px; height: 80px; border: 2px solid var(--gold); border-radius: 6px; object-fit: cover; background: #000; }
+        .hero-details { display: flex; flex-direction: column; }
+        .hero-name-lg { color: var(--gold); font-size: 1.2em; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        .hero-class { color: #888; font-style: italic; margin-top: 2px; }
+
+        /* GRID DE ATRIBUTOS */
+        .attr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; }
+        .attr-box { text-align: center; border: 1px solid #444; padding: 5px; border-radius: 4px; }
+        .attr-label { font-size: 0.7em; color: var(--gold); display: block; font-weight: bold; }
+        .attr-val { font-size: 1.3em; font-weight: bold; color: #fff; }
+
+        /* COMBATE */
+        .combat-title { text-align: center; color: #666; font-size: 0.8em; letter-spacing: 3px; margin-bottom: 8px; text-transform: uppercase; }
+        .skills-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+        .skill-item { 
+            display: flex; justify-content: space-between; align-items: center; 
+            background: #111; padding: 8px 12px; border-radius: 4px; border-left: 3px solid var(--gold);
+        }
+        .skill-name { color: #ccc; font-size: 0.8em; font-weight: bold; }
+        .skill-val { color: #fff; font-weight: bold; }
+
+        /* DERIVADOS */
+        .derivados-row { display: flex; justify-content: space-around; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 20px; margin-bottom: 25px; border: 1px solid #333; }
+        
+        /* BOTÓN LUCHAR */
+        .btn-fight {
+            width: 100%; padding: 15px;
+            background: linear-gradient(45deg, #8b0000, #c0392b);
+            border: 2px solid var(--gold); color: #fff;
+            font-size: 1.2em; font-weight: bold; letter-spacing: 2px;
+            cursor: pointer; text-transform: uppercase;
+            box-shadow: 0 0 15px rgba(192, 57, 43, 0.4);
+            transition: transform 0.2s;
+        }
+        .btn-fight:hover { transform: scale(1.02); box-shadow: 0 0 25px rgba(192, 57, 43, 0.8); }
+
+    </style>
+</head>
+<body>
+
+    <a href="forja.html" class="btn-volver">❮ VOLVER A LA FORJA</a>
+    <h1>Arena de Combate</h1>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 50px;"></th> 
+                    <th>Aventurero</th>
+                    <th>Clase</th>
+                    <th style="text-align:center;">Nvl</th>
+                    <th style="text-align:center;">Vida</th>
+                    <th style="text-align:center;">Maná</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-jugadores">
+                <tr><td colspan="6" style="text-align:center; padding:20px; color:#666;">Buscando rivales...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="modal-ficha" class="modal-overlay" onclick="cerrarFicha(event)">
+        <div class="ficha-card" id="ficha-content">
+            </div>
+    </div>
+
+    <script>
+        // 1. CONFIGURACIÓN FIREBASE (Copiada de pasadizo.html)
+        var firebaseConfig = {           
+            apiKey: "AIzaSyBAqsMHIR2HadNL9GEHn_NlJADUYpS2wLU", 
+            databaseURL: "https://guardiansoflegend-default-rtdb.europe-west1.firebasedatabase.app", 
+            projectId: "guardiansoflegend", 
+            appId: "1:996513661642:web:5b80581a919d48f58eaa33" 
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        var db = firebase.database();
+
+        let jugadoresData = {}; 
+
+        // 2. CARGAR TABLA
+        db.ref('jugadores').on('value', (snapshot) => {
+            const tbody = document.getElementById('tabla-jugadores');
+            tbody.innerHTML = ''; 
+            
+            if(!snapshot.exists()) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">La arena está vacía.</td></tr>';
+                return;
+            }
+
+            jugadoresData = snapshot.val(); 
+
+            Object.keys(jugadoresData).forEach(id => {
+                const p = jugadoresData[id];
+                // Ignorar entradas inválidas
+                if (!p.nombre) return;
+
+                const imagenArchivo = p.avatar || p.imagen || p.foto || `https://api.dicebear.com/7.x/bottts/svg?seed=${id}`;
+                
+                const tr = document.createElement('tr');
+                tr.onclick = () => abrirFichaCombate(id); // Al hacer clic, abre la ficha
+
+                tr.innerHTML = `
+                    <td class="td-avatar"><img src="${imagenArchivo}"></td>
+                    <td class="td-info">
+                        <span class="td-realname">${p.nombre}</span>
+                    </td>
+                    <td style="color:#888; font-style:italic;">${p.clase || 'Aventurero'}</td>
+                    <td style="text-align:center; font-weight:bold;">${p.nivel || 1}</td>
+                    <td style="text-align:center; color:var(--error); font-weight:bold;">${p.vidaActual || p.vida || 0}</td>
+                    <td style="text-align:center; color:var(--mana); font-weight:bold;">${p.manaActual || p.mana || 0}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        });
+
+        // 3. ABRIR FICHA DE COMBATE (SOLO LECTURA)
+        function abrirFichaCombate(id) {
+            const p = jugadoresData[id];
+            if (!p) return;
+
+            const container = document.getElementById('ficha-content');
+            const imagenArchivo = p.avatar || p.imagen || `https://api.dicebear.com/7.x/bottts/svg?seed=${id}`;
+
+            // Cálculos de Stats (Igual que en Forja/Pasadizo)
+            const base = p.statsBase || p.stats || {f:0, d:0, i:0, s:0}; 
+            const bonus = p.bonusEquipo || {f:0, d:0, i:0, s:0};
+            
+            const tF = (parseInt(base.f)||0) + (parseInt(bonus.f)||0);
+            const tD = (parseInt(base.d)||0) + (parseInt(bonus.d)||0);
+            const tI = (parseInt(base.i)||0) + (parseInt(bonus.i)||0);
+            const tS = (parseInt(base.s)||0) + (parseInt(bonus.s)||0);
+
+            const cb = p.statsCombate || {};
+            const esc = (p.statsDerivados && p.statsDerivados.escudo) ? p.statsDerivados.escudo : Math.floor((tS * 2) + (tF / 2));
+            const vel = (p.statsDerivados && p.statsDerivados.velocidad) ? p.statsDerivados.velocidad : Math.floor((tD * 2) + (esc / 2));
+
+            // Renderizado HTML de la Tarjeta
+            container.innerHTML = `
+                <button class="btn-close" onclick="document.getElementById('modal-ficha').style.display='none'">×</button>
+                
+                <div class="info-header">
+                    <img src="${imagenArchivo}" class="avatar-lg">
+                    <div class="hero-details">
+                        <span class="hero-name-lg">${p.nombre}</span>
+                        <span class="hero-class">${p.clase || 'Sin Clase'} - Nivel ${p.nivel || 1}</span>
+                    </div>
+                </div>
+
+                <div class="attr-grid">
+                    <div class="attr-box"><span class="attr-label">FUE</span><span class="attr-val">${tF}</span></div>
+                    <div class="attr-box"><span class="attr-label">DES</span><span class="attr-val">${tD}</span></div>
+                    <div class="attr-box"><span class="attr-label">INT</span><span class="attr-val">${tI}</span></div>
+                    <div class="attr-box"><span class="attr-label">SAL</span><span class="attr-val">${tS}</span></div>
+                </div>
+
+                <div class="combat-title">⚔️ HABILIDADES ⚔️</div>
+                <div class="skills-grid">
+                    <div class="skill-item"><span class="skill-name">Ataque</span> <span class="skill-val">${cb.frontal || 0}</span></div>
+                    <div class="skill-item"><span class="skill-name">Defensa</span> <span class="skill-val">${cb.defensa || 0}</span></div>
+                    <div class="skill-item"><span class="skill-name">Poder Mágico</span> <span class="skill-val">${cb.magico || 0}</span></div>
+                    <div class="skill-item"><span class="skill-name">Esquiva</span> <span class="skill-val">${cb.esquiva || 0}</span></div>
+                </div>
+
+                <div class="derivados-row">
+                    <div>🛡️ Escudo: <b>${esc}</b></div>
+                    <div>⚡ Velocidad: <b>${vel}</b></div>
+                </div>
+
+                <button class="btn-fight" onclick="iniciarCombate('${id}')">¡LUCHAR!</button>
+            `;
+
+            document.getElementById('modal-ficha').style.display = 'flex';
+        }
+
+        function cerrarFicha(e) {
+            if (e.target.id === 'modal-ficha') {
+                document.getElementById('modal-ficha').style.display = 'none';
+            }
+        }
+
+        function iniciarCombate(idRival) {
+            const rival = jugadoresData[idRival];
+            alert("⚔️ ¡PREPARANDO COMBATE CONTRA " + rival.nombre.toUpperCase() + "! ⚔️\n(Lógica de combate pendiente de implementar)");
+        }
+
+    </script>
+</body>
+</html>
