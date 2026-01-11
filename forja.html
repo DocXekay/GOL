@@ -205,7 +205,7 @@
             <label>NOMBRE DEL HÉROE (Máx 18)</label>
             <input type="text" id="in-name" maxlength="18" oninput="validarYSync()">
             <label>CLASE</label>
-            <select id="in-class" onchange="toggleCF(); validarYSync();">
+            <select id="in-class" onchange= "previsualizarClase(); toggleCF(); validarYSync();">
                 <option value="">Selecciona Clase...</option>
                 <option>Bárbaro</option><option>Paladín</option><option>Arquero</option><option>Pícaro</option><option>Mago</option><option>Cambiaformas</option>
             </select>
@@ -304,8 +304,9 @@
             <div class="status-area">
                 <div class="bar-container"><div class="bar-text-overlay" id="t-vida">100 / 100 VIDA</div><div id="bar-v" class="bar-fill" style="background:var(--vida); width:100%;"></div></div>
                 <div class="bar-container"><div class="bar-text-overlay" id="t-mana">0 / 100 MANÁ</div><div id="bar-m" class="bar-fill" style="background:var(--mana); width:0%;"></div></div>
-                <div class="bar-container"><div class="bar-text-overlay" id="t-exp">0 / 1000 EXP</div><div id="bar-e" class="bar-fill" style="background:var(--gold); width:0%;"></div></div>
+                <div class="bar-container"><div class="bar-text-overlay" id="t-experiencia">0 / 1000 EXP</div><div id="bar-e" class="bar-fill" style="background:var(--gold); width:0%;"></div></div>
             </div>
+                    
             <div class="btn-crear-box" id="box-crear"><button id="btn-crear" disabled onclick="forjarHeroe()">FORJAR HÉROE</button></div>
             <div class="f-game-icons" id="f-game-icons">
                 <div class="gold-rect"><img src="bolsa_oro.png" width="40" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2489/2489756.png'"><span id="f-gold" style="font-size:1.8em; color:var(--gold-bright);">0</span></div>
@@ -347,7 +348,8 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script>
-    
+    // Forzamos la previsualización nada más cargar la página
+    setTimeout(previsualizarClase, 500);
     let rangoLocalParaAviso = null;
     let puntosTemporales = 0; // Variable global necesaria
 
@@ -423,6 +425,62 @@
         const emailKey = mail.toLowerCase().replace(/\./g, '_');
         db.ref('jugadores/' + emailKey).once('value', (snapshot) => {
             const datos = snapshot.val();
+            if (!datos) return; // Seguridad
+            // --- 1. CORRECCIÓN DE VARIABLE (Leemos 'experiencia', no 'exp') ---
+            const xpReal = datos.experiencia || 0;
+
+            // --- 2. DETECTOR DE NIVEL Y ASIGNACIÓN DE PUNTOS ---
+            const RANGOS_VAL = { "MUGGLE": 0, "NOVATO": 1, "AVANZADO": 2, "EXPERTO": 3, "LEGENDARIO": 4 };
+            const rangoTexto = getRango(xpReal);                 // Ahora sí calcula bien tu rango
+            const rangoNumActual = RANGOS_VAL[rangoTexto];       // Ej: 1
+            const rangoNumGuardado = datos.rangoNum !== undefined ? datos.rangoNum : 0;
+
+            // Si detectamos que has subido de rango...
+            if (rangoNumActual > rangoNumGuardado) {
+                console.log(`⚡ SUBIDA: ${rangoNumGuardado} -> ${rangoNumActual}`);
+                
+                // Calculamos puntos (2 por nivel)
+                const diferencia = rangoNumActual - rangoNumGuardado;
+                const premio = diferencia * 2;
+
+                // Capturamos el ID de forma segura desde el input
+                const mailInput = document.getElementById('in-mail');
+                if (mailInput) {
+                    const idJugador = mailInput.value.toLowerCase().replace(/\./g, '_');
+                    
+                    // GUARDAMOS EN LA BASE DE DATOS
+                    db.ref('jugadores/' + idJugador).update({
+                        rangoNum: rangoNumActual,
+                        nivel: rangoTexto,
+                        puntosAumento: (datos.puntosAumento || 0) + premio
+                    });
+                }
+                return; // Cortamos para recargar con los datos nuevos
+            }
+
+            // --- 3. GESTIÓN DEL AVISO DE SUBIDA (MODAL) ---
+            const modal = document.getElementById('modal-subida');
+            if ((datos.puntosAumento || 0) > 0) {
+                if(modal) modal.style.display = 'flex';
+                const labelPts = document.getElementById('pts-up-disponibles');
+                if(labelPts) labelPts.innerText = datos.puntosAumento;
+            } else {
+                if(modal) modal.style.display = 'none';
+            }
+            
+            // A PARTIR DE AQUÍ DEJA TU CÓDIGO ORIGINAL QUE ACTUALIZA LA INTERFAZ...
+            // (Asegúrate de que más abajo usas 'xpReal' o 'datos.experiencia' para las barras)
+
+
+            // Actualizar visualmente el rango al cargar
+            const rangoCargado = getRango(datos.experiencia || 0);
+            document.getElementById('f-badge').innerText = rangoCargado;
+            document.getElementById('lvl-label').innerText = "RANGO: " + rangoCargado;
+                
+            personajeCreado = true; forjarHeroe(true); renderInv();
+            setTimeout(() => { cargandoPersonaje = false; }, 1000);
+
+
             if (datos) {
                 cargandoPersonaje = true;
                 document.getElementById('in-name').value = datos.nombre;
@@ -437,51 +495,105 @@
                         });
                     });
                 }
-                // Actualizar visualmente el rango al cargar
-                const rangoCargado = getRango(datos.exp || 0);
-                document.getElementById('f-badge').innerText = rangoCargado;
-                document.getElementById('lvl-label').innerText = "RANGO: " + rangoCargado;
-                
-                personajeCreado = true; forjarHeroe(true); renderInv();
-                setTimeout(() => { cargandoPersonaje = false; }, 1000);
             }
         });
     }
 
+    // --- FUNCIÓN PARA PREVISUALIZAR VIDA/MANÁ AL CREAR ---
+    function previsualizarClase() {
+        // --- FUNCIÓN PREVISUALIZAR CLASE (VERSIÓN BARRAS ORIGINALES) ---
+        window.previsualizarClase = function() {
+        const selector = document.getElementById('in-class');
+        if (!selector) return;
+
+        const claseSeleccionada = selector.value;
+        // Si no encuentra la clase, pone todo a 0
+        const stats = CLASSES[claseSeleccionada] || {f:0, d:0, i:0, s:0};
+
+        // FÓRMULA PURA: Stat * 100 (Sin sumar 100 base)
+        // Ejemplo: Cambiaformas con Salud 0 -> Vida 0
+        // Ejemplo: Bárbaro con Salud 5 -> Vida 500
+        const vida = (stats.s * 100);
+        const mana = (stats.i * 100);
+
+        const txtVida = document.getElementById('t-vida');
+        const barVida = document.getElementById('bar-v');
+        const txtMana = document.getElementById('t-mana');
+        const barMana = document.getElementById('bar-m');
+
+        // Actualizamos texto
+        if (txtVida) txtVida.innerText = vida + " / " + vida + " VIDA";
+        if (txtMana) txtMana.innerText = mana + " / " + mana + " MANÁ";
+
+        // Actualizamos BARRA y COLOR
+        if (barVida) {
+            barVida.style.width = Math.min((vida / 1000) * 100, 100) + "%";
+            barVida.style.background = "var(--vida)"; // FORZAMOS COLOR ROJO
+        }
+        if (barMana) {
+            barMana.style.width = Math.min((mana / 1000) * 100, 100) + "%";
+            barMana.style.background = "var(--mana)"; // FORZAMOS COLOR AZUL
+        } 
+    };
+
+        // Forzamos la actualización nada más cargar para que no salgan vacías
+        setTimeout(window.previsualizarClase, 500);
+    }
+
+    // --- FUNCIÓN PARA ACTUALIZAR BARRAS DEL CAMBIAFORMAS EN TIEMPO REAL ---
+    function actualizarBarrasVisuales() {
+
+        window.actualizarBarrasVisuales = function() {
+            // Leemos los puntos que has asignado en el panel (objeto 'cf')
+            // Misma fórmula: Puntos * 100
+            const vidaCalc = ((cf.s || 0) * 100);
+            const manaCalc = ((cf.i || 0) * 100);
+
+            // 2. Apuntamos a las barras de la ficha
+            const txtVida = document.getElementById('t-vida');
+            const barVida = document.getElementById('bar-v');
+            const txtMana = document.getElementById('t-mana');
+            const barMana = document.getElementById('bar-m');
+
+            // 3. Pintamos los nuevos valores
+            if (txtVida) txtVida.innerText = vidaCalc + " / " + vidaCalc + " VIDA";
+            if (txtMana) txtMana.innerText = manaCalc + " / " + manaCalc + " MANÁ";
+
+            // Actualizamos BARRA y COLOR
+            if (barVida) {
+                barVida.style.width = Math.min((vidaCalc / 1000) * 100, 100) + "%";
+                barVida.style.background = "var(--vida)"; // FORZAMOS COLOR ROJO
+            }
+            if (barMana) {
+                barMana.style.width = Math.min((manaCalc / 1000) * 100, 100) + "%";
+                barMana.style.background = "var(--mana)"; // FORZAMOS COLOR AZUL
+            }
+        }
+    }
+
     function mejorarStat(stat) {
-        if (puntosTemporales <= 0) return;
+        // 1. Capturamos el ID
+        const mailElement = document.getElementById('in-mail');
+        if (!mailElement || !mailElement.value) return;
+        const id = mailElement.value.toLowerCase().replace(/\./g, '_');
 
-        const email = document.getElementById('in-mail').value.toLowerCase().replace(/\./g, '_');
-        const userRef = db.ref('jugadores/' + email);
+        db.ref('jugadores/' + id).transaction((jugador) => {
+            if (jugador) {
+                // Si faltan datos (bug común), los creamos al vuelo
+                if (jugador.puntosAumento === undefined) jugador.puntosAumento = 0;
+                if (!jugador.statsBase) jugador.statsBase = {f:0, d:0, i:0, s:0};
 
-        userRef.transaction((player) => {
-            if (player) {
-                if (!player.statsBase) player.statsBase = {f:1, d:1, i:1, s:1};
-                player.statsBase[stat] = (player.statsBase[stat] || 0) + 1;
-                
-                if(stat === 's') player.vida = (player.vida || 0) + 100;
-                if(stat === 'i') player.mana = (player.mana || 0) + 100;
-            }
-            return player;
-        }, (error, committed, snapshot) => {
-            if (committed) {
-                puntosTemporales--;
-                document.getElementById('pts-up-disponibles').innerText = puntosTemporales;
-                
-                // --- ESTA ES LA CORRECCIÓN: Actualización visual inmediata ---
-                const nuevoValor = snapshot.val().statsBase[stat];
-                const elementoFicha = document.getElementById(`f-${stat}`);
-                if (elementoFicha) {
-                    elementoFicha.innerText = nuevoValor;
+                // REGLA DE ORO: Solo gastamos si hay puntos en el banco
+                if (jugador.puntosAumento > 0) {
+                    jugador.puntosAumento--; // Restamos 1 punto
+                    jugador.statsBase[stat] = (jugador.statsBase[stat] || 0) + 1; // Sumamos 1 stat
+                    
+                    // (Opcional) Si tu juego sube vida/maná con Stats, mantén esto:
+                    if(stat === 's') jugador.vida = (jugador.vida || 0) + 100;
+                    if(stat === 'i') jugador.mana = (jugador.mana || 0) + 100;
                 }
-                // -------------------------------------------------------------
-
-                if (puntosTemporales <= 0) {
-                    document.querySelectorAll('.btn-plus').forEach(b => b.disabled = true);
-                    document.getElementById('btn-cerrar-up').style.display = 'block';
-                }
-                recalc(); 
             }
+            return jugador; // Guardamos y cerramos
         });
     }
 
@@ -509,8 +621,52 @@
             document.getElementById('f-gold').innerText = oroActual;
             
             // Actualizar rango en tiempo real
-            const r = getRango(datos.exp || 0);
+            const r = getRango(datos.experiencia || 0);
             
+            // --- PEGAR ESTO DENTRO DE LA FUNCIÓN DE ESCUCHA (db.ref...on) ---
+            
+            // 1. Mapa para traducir los nombres de tus rangos a números
+            const RANGOS_VAL = { "MUGGLE": 0, "NOVATO": 1, "AVANZADO": 2, "EXPERTO": 3, "LEGENDARIO": 4 };
+            
+            // 2. Traducimos lo que eres AHORA y lo que eras ANTES
+            const rangoActualNum = RANGOS_VAL[r];                // Ej: NOVATO es 1
+            const rangoGuardadoNum = datos.rangoNum !== undefined ? datos.rangoNum : 0; // Lo que dice la BD
+
+            // 3. COMPARACIÓN: ¿Eres más poderoso ahora que antes?
+            if (rangoActualNum > rangoGuardadoNum) {
+                console.log("¡Subida de nivel detectada! Guardando puntos...");
+                
+                // --- CORRECCIÓN: Definimos el ID aquí mismo para asegurar que no falle ---
+                const mailInput = document.getElementById('in-mail');
+                const idJugador = mailInput.value.toLowerCase().replace(/\./g, '_'); 
+                // ------------------------------------------------------------------------
+
+                const nivelesSubidos = rangoActualNum - rangoGuardadoNum;
+                const premio = nivelesSubidos * 2; 
+
+                // Ahora usamos 'idJugador', que seguro que existe
+                db.ref('jugadores/' + idJugador).update({
+                    rangoNum: rangoActualNum,   
+                    nivel: r,                   
+                    puntosAumento: (datos.puntosAumento || 0) + premio
+                });
+                return; 
+            }
+
+            // 4. GESTIÓN DEL MENÚ DE SUBIDA (MODAL)
+            // Si tienes dinero en la cuenta (BD), mostramos la ventana
+            const modal = document.getElementById('modal-subida');
+            if ((datos.puntosAumento || 0) > 0) {
+                if(modal) modal.style.display = 'flex';
+                // Actualizamos el contador visual con el dato real de la BD
+                const contador = document.getElementById('pts-up-disponibles');
+                if(contador) contador.innerText = datos.puntosAumento;
+            } else {
+                if(modal) modal.style.display = 'none';
+            }
+            // ---------------------------------------------------------------
+
+
             // Verificamos si es un ascenso real:
             // Si rangoLocalParaAviso no es null (no es la primera carga)
             // y el rango nuevo (r) es distinto al que teníamos guardado
@@ -522,7 +678,6 @@
         
             // Actualizamos siempre la marca local con el rango más reciente de Firebase
             rangoLocalParaAviso = r;
-            
             
             
             document.getElementById('f-badge').innerText = r;
@@ -656,11 +811,11 @@
         slot.innerHTML = `<img src="${it.img}" style="width:100%" onmouseover="showTooltip(${itJson}, 'equip-tooltip')" onmouseout="hideTooltip('equip-tooltip')"><button class="btn-unequip" onclick="unequipItem('${it.id}')">X</button>`;
     }
 
-    function getRango(exp) {
-        if (exp >= 4000) return "LEGENDARIO";
-        if (exp >= 3000) return "EXPERTO";
-        if (exp >= 2000) return "AVANZADO";
-        if (exp >= 1000) return "NOVATO";
+    function getRango(experiencia) {
+        if (experiencia >= 4000) return "LEGENDARIO";
+        if (experiencia >= 3000) return "EXPERTO";
+        if (experiencia >= 2000) return "AVANZADO";
+        if (experiencia >= 1000) return "NOVATO";
         return "MUGGLE";
     }
 
@@ -677,23 +832,23 @@
         document.getElementById('t-mana').innerText = `${datos.mana || 0} / ${mMax} MANÁ`;
         document.getElementById('bar-m').style.width = Math.min(100, (datos.mana || 0) / mMax * 100) + "%";
         
-        const exp = datos.exp || 0;
+        const experiencia = datos.experiencia || 0;
         let color = "var(--lvl-muggle)", minR = 0, maxR = 1000;
-        const rangoActual = getRango(exp);
+        const rangoActual = getRango(experiencia);
         
-        if (exp >= 4000) { color = "var(--lvl-legendario)"; minR = 4000; maxR = 5000; }
-        else if (exp >= 3000) { color = "var(--lvl-experto)"; minR = 3000; maxR = 4000; }
-        else if (exp >= 2000) { color = "var(--lvl-avanzado)"; minR = 2000; maxR = 3000; }
-        else if (exp >= 1000) { color = "var(--lvl-novato)"; minR = 1000; maxR = 2000; }
+        if (experiencia >= 4000) { color = "var(--lvl-legendario)"; minR = 4000; maxR = 5000; }
+        else if (experiencia >= 3000) { color = "var(--lvl-experto)"; minR = 3000; maxR = 4000; }
+        else if (experiencia >= 2000) { color = "var(--lvl-avanzado)"; minR = 2000; maxR = 3000; }
+        else if (experiencia >= 1000) { color = "var(--lvl-novato)"; minR = 1000; maxR = 2000; }
         
         // Actualizar textos de rango en la interfaz
         document.getElementById('f-badge').innerText = rangoActual;
         document.getElementById('lvl-label').innerText = "RANGO: " + rangoActual;
 
-        const pctExp = ((exp - minR) / (maxR - minR)) * 100;
+        const pctExp = ((experiencia - minR) / (maxR - minR)) * 100;
         document.getElementById('bar-e').style.width = Math.min(100, pctExp) + "%";
         document.getElementById('bar-e').style.backgroundColor = color;
-        document.getElementById('t-exp').innerText = `${exp} / ${maxR} EXP`;
+        document.getElementById('t-expexperiencia').innerText = `${experiencia} / ${maxR} EXP`;
     }
 
     function recalc() {
@@ -799,7 +954,7 @@
             vida: (statsBase.s || 1) * 100, 
             mana: (statsBase.i || 1) * 100, 
             oro: 0, 
-            exp: 0,
+            experiencia: 0,
             puntosAumento: 0,
             statsBase: statsBase,
             bonusEquipo: { f:0, d:0, i:0, s:0, frontal:0, defensa:0, distancia:0, esquiva:0, magico:0, iniciativa:0 },
@@ -835,8 +990,28 @@
 
     function toggleInv(s) { document.getElementById('modal-inventario').style.display = s ? 'flex' : 'none'; }
     function toggleCF() { document.getElementById('cf-area').style.display = (document.getElementById('in-class').value === "Cambiaformas") ? 'block' : 'none'; }
-    function modCF(st, val) { if(val > 0 && points <= 0) return; if(val < 0 && cf[st] <= 0) return; cf[st] += val; points -= val; document.getElementById('pts-libres').innerText = points; document.getElementById(`v-${st}`).innerText = cf[st]; validarYSync(); }
+    
+    function modCF(st, val) {
+        window.modCF = function(st, val) {
+            // 1. Lógica de puntos (igual que tenías)
+            if(val > 0 && points <= 0) return;
+            if(val < 0 && cf[st] <= 0) return;
 
+            cf[st] += val;
+            points -= val;
+
+            // 2. Actualizamos números del panel
+            document.getElementById('pts-libres').innerText = points;
+            document.getElementById(`v-${st}`).innerText = cf[st];
+
+            validarYSync();
+
+            // 3. ¡IMPORTANTE! Si tocas Salud o Inteligencia, repintamos las barras
+            if (st === 's' || st === 'i') {
+                window.actualizarBarrasVisuales();
+            }
+        };
+    }
     
     // 1. Función para viajar a la Arena
     function irALaArena() {

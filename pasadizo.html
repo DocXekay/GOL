@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>PANEL DE MAESTRO | Guardians of Legend</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <style>
+        /* --- ESTILO GENERAL "GOLD" --- */
+        :root { 
+            --gold: #d4af37; --bg: #0a0a0c; --panel: #1a1a1e; 
+            --text: #e8dcc4; --error: #ff4444; --success: #2ecc71; 
+            --gold-bright: #fceabb; --mana: #0044ff;
+        }
+        body { background: var(--bg); color: var(--text); font-family: 'Palatino Linotype', serif; margin: 0; padding: 20px; }
+        h1 { color: var(--gold); text-align: center; text-transform: uppercase; letter-spacing: 5px; margin-bottom: 30px; }
+
+        /* --- VISTA DE TABLA --- */
+        .table-container {
+            width: 100%; max-width: 1200px; margin: 0 auto;
+            background: var(--panel); border: 2px solid var(--gold);
+            border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        table { width: 100%; border-collapse: collapse; }
+        thead { background: rgba(212, 175, 55, 0.1); border-bottom: 2px solid var(--gold); }
+        th { padding: 15px; text-align: left; color: var(--gold); font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }
+        td { padding: 12px 15px; border-bottom: 1px solid #333; vertical-align: middle; }
+        tr:hover { background: rgba(255, 255, 255, 0.05); cursor: pointer; transition: 0.2s; }
+        
+        /* Celdas específicas */
+        .td-avatar img { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--gold); object-fit: cover; }
+        .td-info { line-height: 1.2; }
+        .td-realname { display: block; font-weight: bold; color: #fff; }
+        .td-heroname { font-size: 0.85em; color: var(--gold); text-transform: uppercase; }
+        .td-clase { font-style: italic; color: #888; font-size: 0.9em; }
+        .td-stat { font-weight: bold; }
+        
+        /* Botón de Borrar en Tabla */
+        .btn-delete-table {
+            background: none; border: none; color: #555; font-size: 1.2em; cursor: pointer; transition: 0.2s;
+        }
+        .btn-delete-table:hover { color: var(--error); transform: scale(1.2); }
+
+        /* --- MODAL DE FICHA (Card Grande) --- */
+        .modal-ficha-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 100; /* Capa 1 */
+            display: none; justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+            overflow-y: auto; padding: 20px;
+        }
+        .ficha-container {
+            width: 100%; max-width: 450px; 
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        /* ESTILOS DE LA TARJETA */
+        .card { 
+            background: var(--panel); border: 2px solid var(--gold); padding: 20px; 
+            border-radius: 8px; position: relative; box-shadow: 0 0 30px rgba(212, 175, 55, 0.2);
+        }
+        
+        .btn-close-ficha {
+            position: absolute; top: 10px; right: 10px;
+            background: none; border: none; color: #666; font-size: 1.5em; cursor: pointer;
+        }
+        .btn-close-ficha:hover { color: var(--error); }
+
+        .info-header { display: flex; gap: 15px; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .avatar-container { width: 70px; height: 70px; position: relative; }
+        .avatar-img { width: 70px; height: 70px; border: 1px solid var(--gold); border-radius: 4px; object-fit: cover; background: #000; }
+        .hero-details { display: flex; flex-direction: column; overflow: hidden; line-height: 1.3; flex-grow: 1; }
+        .real-name { color: #fff; font-weight: bold; font-size: 1.2em; }
+        .hero-name { color: var(--gold); font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+        .hero-meta { font-size: 1em; color: #888; font-style: italic; margin-bottom: 2px; }
+        .hero-mail { font-size: 1em; opacity: 0.5; font-style: italic; }
+        
+        .attr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; }
+        .attr-box { text-align: center; border: 1px solid #444; padding: 5px; border-radius: 4px; background: rgba(255,255,255,0.02); }
+        .attr-label { font-size: 0.65em; color: var(--gold); display: block; font-weight: bold; }
+        .attr-val { font-size: 1.2em; font-weight: bold; color: #fff; }
+
+        .combat-section { margin-bottom: 15px; }
+        .combat-title { font-size: 0.7em; color: #888; text-transform: uppercase; text-align: center; margin-bottom: 5px; letter-spacing: 2px; }
+        .skills-grid { 
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px; 
+            background: rgba(46, 204, 113, 0.05); padding: 10px; border-radius: 6px; border: 1px solid #333;
+        }
+        .skill-item { 
+            display: flex; justify-content: space-between; align-items: center; 
+            background: #111; padding: 6px 10px; border-radius: 4px; border-left: 3px solid var(--gold);
+        }
+        .skill-name { color: #ccc; font-size: 0.85em; font-weight: bold; }
+        .skill-val { color: #fff; font-weight: bold; font-size: 1.1em; }
+
+        .derivados-container { 
+            display: flex; justify-content: space-around; margin-bottom: 15px; 
+            background: rgba(0,0,0,0.2); padding: 5px; border-radius: 40px; border: 1px solid #333;
+        }
+        .deriv-item { font-size: 0.8em; color: #888; display: flex; gap: 5px; align-items: center; }
+        .deriv-val { color: #eee; font-weight: bold; font-size: 1.1em; }
+
+        .res-row { 
+            display: flex; justify-content: space-between; align-items: center; 
+            margin-bottom: 8px; padding: 8px; border-radius: 5px; 
+            background: rgba(255,255,255,0.03); border: 1px solid #333;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .res-row:hover { background: rgba(255,255,255,0.08); border-color: #666; }
+        .res-icon { width: 25px; display: inline-block; text-align: center; }
+        .res-val { font-weight: bold; font-size: 1.1em; color: #fff; margin-left: 10px; }
+        .btn-mod { background: none; border: 1px solid #555; color: #aaa; font-size: 0.7em; padding: 2px 8px; border-radius: 4px; }
+
+        /* --- MODAL DE MODIFICACIÓN (Overlay sobre overlay) --- */
+        .overlay-mod {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 200; /* Capa 2 (Superior a la ficha) */
+            display: none; justify-content: center; align-items: center;
+        }
+        .overlay-content {
+            background: #222; border: 2px solid var(--gold);
+            padding: 25px; width: 90%; max-width: 350px; border-radius: 10px;
+            text-align: center; box-shadow: 0 0 30px #000;
+        }
+        .overlay-title { color: var(--gold); font-size: 1.2em; margin-bottom: 20px; text-transform: uppercase; }
+        .overlay-btn-group { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .btn-action {
+            padding: 10px 15px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;
+            font-size: 1em; color: #fff; min-width: 50px;
+        }
+        .btn-pos { background: #27ae60; } .btn-pos:hover { background: #2ecc71; }
+        .btn-neg { background: #c0392b; } .btn-neg:hover { background: #e74c3c; }
+        
+        .overlay-input {
+            width: 100%; padding: 10px; margin-bottom: 15px; background: #000;
+            border: 1px solid #444; color: #fff; border-radius: 5px; box-sizing: border-box;
+        }
+        .btn-close { background: transparent; border: 1px solid #666; color: #888; padding: 8px 20px; cursor: pointer; }
+
+    </style>
+</head>
+<body>
+
+    <h1>🏰 PASADIZO DEL DESTINO</h1>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 50px;"></th> 
+                    <th>Aventurero</th>
+                    <th>Clase</th>
+                    <th style="text-align:center;">Vida</th>
+                    <th style="text-align:center;">Maná</th>
+                    <th style="text-align:center;">Oro</th>
+                    <th style="text-align:center;">Exp</th>
+                    <th style="width: 50px; text-align:center;">🗑️</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-jugadores">
+                <tr><td colspan="8" style="text-align:center; padding:20px; color:#666;">Cargando lista...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="modal-ficha" class="modal-ficha-overlay" onclick="cerrarFicha(event)">
+        <div class="ficha-container" id="ficha-content">
+            </div>
+    </div>
+
+    <div id="modal-modificacion" class="overlay-mod">
+        <div class="overlay-content">
+            <h2 id="modal-titulo" class="overlay-title">MODIFICAR</h2>
+            <div id="modal-botones" class="overlay-btn-group"></div>
+            <input type="text" id="modal-concepto" class="overlay-input" placeholder="Razón (Opcional)">
+            <button onclick="cerrarModalMod()" class="btn-close">CANCELAR</button>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN
+        var firebaseConfig = {           
+            apiKey: "AIzaSyBAqsMHIR2HadNL9GEHn_NlJADUYpS2wLU", 
+            databaseURL: "https://guardiansoflegend-default-rtdb.europe-west1.firebasedatabase.app", 
+            projectId: "guardiansoflegend", 
+            appId: "1:996513661642:web:5b80581a919d48f58eaa33" 
+        };
+
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        var db = firebase.database();
+
+        // TABLA DE NOMBRES
+        const tablaEquivalencias = {
+            "sguigut269@g.educaand.es": "Alquimista del Hacha",
+            "mguimer0502@g.educaand.es": "Marta G.",
+            "cguimer1503@g.educaand.es": "Cristina G.",
+            "jdomgom398@g.educaand.es": "JAVIER",
+            "jferper1302@g.educaand.es": "JULIA",
+            "jgargar991@g.educaand.es": "JAVIER G.",
+            // ... (resto de tus nombres) ...
+        };
+
+        // VARIABLES GLOBALES
+        let jugadoresData = {}; 
+        let jugadorActual = null;
+        let campoActual = null;
+
+        // --- CONEXIÓN Y RENDERIZADO TABLA ---
+        db.ref('jugadores').on('value', (snapshot) => {
+            const tbody = document.getElementById('tabla-jugadores');
+            tbody.innerHTML = ''; 
+
+            if(!snapshot.exists()) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">No hay aventureros conectados.</td></tr>';
+                return;
+            }
+
+            jugadoresData = snapshot.val(); 
+
+            Object.keys(jugadoresData).forEach(id => {
+                const p = jugadoresData[id];
+                
+                const emailClean = id.replace(/_/g, '.');
+                const nombreReal = tablaEquivalencias[emailClean] || id.split('_')[0].toUpperCase();
+                const imagenArchivo = p.avatar || p.imagen || p.foto || p.img;
+                const avatarSrc = imagenArchivo ? imagenArchivo : `https://api.dicebear.com/7.x/bottts/svg?seed=${id}`;
+                
+                const vida = p.vida !== undefined ? p.vida : (p.vidaActual || 0);
+                const mana = p.mana !== undefined ? p.mana : (p.manaActual || 0);
+                const oro = p.oro || 0;
+                const experiencia = p.experiencia !== undefined ? p.experiencia : (p.experiencia || 0);
+
+                const tr = document.createElement('tr');
+                // Acción de abrir ficha al hacer clic en la fila
+                tr.onclick = () => abrirFicha(id); 
+                
+                tr.innerHTML = `
+                    <td class="td-avatar"><img src="${avatarSrc}" onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=${id}'"></td>
+                    <td class="td-info">
+                        <span class="td-realname">${nombreReal}</span>
+                        <span class="td-heroname">${p.nombre || 'Sin nombre'}</span>
+                    </td>
+                    <td class="td-clase">${p.clase || '-'}</td>
+                    <td class="td-stat" style="text-align:center; color:var(--error);">${vida}</td>
+                    <td class="td-stat" style="text-align:center; color:var(--mana);">${mana}</td>
+                    <td class="td-stat" style="text-align:center; color:var(--gold);">${oro}</td>
+                    <td class="td-stat" style="text-align:center; color:#aaa;">${experiencia}</td>
+                    <td style="text-align:center;">
+                        <button class="btn-delete-table" title="Borrar Jugador" onclick="eliminarJugador(event, '${id}', '${p.nombre || 'Aventurero'}')">🗑️</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            // Refresco en tiempo real si la ficha está abierta
+            const modalFicha = document.getElementById('modal-ficha');
+            if (modalFicha.style.display === 'flex') {
+                const idAbierto = modalFicha.getAttribute('data-id');
+                if (idAbierto && jugadoresData[idAbierto]) {
+                    renderFichaContent(idAbierto);
+                }
+            }
+        });
+
+        // --- FUNCIÓN DE BORRADO ---
+        function eliminarJugador(e, id, nombre) {
+            // Detiene la propagación para que NO se abra la ficha al hacer clic en borrar
+            e.stopPropagation(); 
+            
+            if (confirm(`⚠️ ¿Estás seguro de que quieres BORRAR a ${nombre}?\n\nEsta acción no se puede deshacer y perderá todo su progreso.`)) {
+                db.ref('jugadores/' + id).remove();
+            }
+        }
+
+        // --- LÓGICA DE FICHA COMPLETA ---
+        function abrirFicha(id) {
+            const modal = document.getElementById('modal-ficha');
+            modal.setAttribute('data-id', id); 
+            renderFichaContent(id);
+            modal.style.display = 'flex';
+        }
+
+        function cerrarFicha(e) {
+            if (e.target.id === 'modal-ficha') {
+                document.getElementById('modal-ficha').style.display = 'none';
+                document.getElementById('modal-ficha').removeAttribute('data-id');
+            }
+        }
+        
+        function renderFichaContent(id) {
+            const p = jugadoresData[id];
+            if (!p) return;
+
+            const container = document.getElementById('ficha-content');
+            
+            const emailClean = id.replace(/_/g, '.');
+            const nombreReal = tablaEquivalencias[emailClean] || id.split('_')[0].toUpperCase();
+            const imagenArchivo = p.avatar || p.imagen || p.foto || p.img;
+            const avatarSrc = imagenArchivo ? imagenArchivo : `https://api.dicebear.com/7.x/bottts/svg?seed=${id}`;
+
+            const base = p.statsBase || p.stats || {f:0, d:0, i:0, s:0}; 
+            const bonus = p.bonusEquipo || {f:0, d:0, i:0, s:0};
+            const getVal = (obj, s, l) => parseInt(obj[s] || obj[l] || 0);
+
+            const tF = getVal(base, 'f', 'Fuerza') + getVal(bonus, 'f', 'Fuerza');
+            const tD = getVal(base, 'd', 'Destreza') + getVal(bonus, 'd', 'Destreza');
+            const tI = getVal(base, 'i', 'Inteligencia') + getVal(bonus, 'i', 'Inteligencia');
+            const tS = getVal(base, 's', 'Salud') + getVal(bonus, 's', 'Salud');
+
+            const cF = bonus.f > 0 ? '#2ecc71' : 'inherit';
+            const cD = bonus.d > 0 ? '#2ecc71' : 'inherit';
+            const cI = bonus.i > 0 ? '#2ecc71' : 'inherit';
+            const cS = bonus.s > 0 ? '#2ecc71' : 'inherit';
+
+            const cb = p.statsCombate || {};
+            const skills = [
+                { name: "ATAQUE", val: cb.frontal || 0 },
+                { name: "BLOQUEO", val: cb.defensa || 0 },
+                { name: "ATAQUE LEJANO", val: cb.distancia || 0 },
+                { name: "ESQUIVAR ATAQUE", val: cb.esquiva || 0 },
+                { name: "HECHIZO OFENSIVO", val: cb.magico || 0 },                   
+                { name: "RESISTENCIA MÁGICA", val: cb.iniciativa || 0 } 
+            ];
+
+            const esc = (p.statsDerivados && p.statsDerivados.escudo !== undefined) ? p.statsDerivados.escudo : Math.floor((tS * 2) + (tF / 2));
+            const vel = (p.statsDerivados && p.statsDerivados.velocidad !== undefined) ? p.statsDerivados.velocidad : Math.floor((tD * 2) + (esc / 2));
+
+            const vida = p.vida !== undefined ? p.vida : (p.vidaActual || 0);
+            const mana = p.mana !== undefined ? p.mana : (p.manaActual || 0);
+            const oro = p.oro || 0;
+            const experiencia = p.experiencia !== undefined ? p.experiencia : (p.experiencia || 0);
+
+            const skillsHTML = skills.map(s => `
+                <div class="skill-item">
+                    <span class="skill-name">${s.name}</span>
+                    <span class="skill-val">${s.val}</span>
+                </div>`).join('');
+
+            container.innerHTML = `
+                <div class="card">
+                    <button class="btn-close-ficha" onclick="document.getElementById('modal-ficha').style.display='none'">×</button>
+                    
+                    <div class="info-header">
+                        <div class="avatar-container">
+                            <img src="${avatarSrc}" class="avatar-img" onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=${id}'">
+                        </div>
+                        <div class="hero-details">
+                            <span class="real-name">${nombreReal}</span>
+                            <span class="hero-name">${p.nombre || 'Aventurero'}</span>
+                            <span class="hero-meta">${p.clase || 'Sin Clase'}</span>
+                            <span class="hero-mail">${emailClean}</span>
+                        </div>
+                    </div>
+
+                    <div class="attr-grid">
+                        <div class="attr-box"><span class="attr-label">FUE</span><span class="attr-val" style="color:${cF}">${tF}</span></div>
+                        <div class="attr-box"><span class="attr-label">DES</span><span class="attr-val" style="color:${cD}">${tD}</span></div>
+                        <div class="attr-box"><span class="attr-label">INT</span><span class="attr-val" style="color:${cI}">${tI}</span></div>
+                        <div class="attr-box"><span class="attr-label">SAL</span><span class="attr-val" style="color:${cS}">${tS}</span></div>
+                    </div>
+
+                    <div class="combat-section">
+                        <div class="combat-title">⚔️ HABILIDADES DE COMBATE ⚔️</div>
+                        <div class="skills-grid">
+                            ${skillsHTML}
+                        </div>
+                    </div>
+
+                    <div class="derivados-container">
+                        <div class="deriv-item"><span>🛡️ Escudo:</span> <span class="deriv-val">${esc}</span></div>
+                        <div class="deriv-item"><span>⚡ Velocidad:</span> <span class="deriv-val">${vel}</span></div>
+                    </div>
+
+                    <div class="res-row" onclick="abrirModalMod('${id}', 'vida')">
+                        <div><span class="res-icon">❤️</span> <span class="res-val" style="color:var(--error)">${vida}</span></div>
+                        <span class="btn-mod">MODIFICAR</span>
+                    </div>
+                    <div class="res-row" onclick="abrirModalMod('${id}', 'mana')">
+                        <div><span class="res-icon">💧</span> <span class="res-val" style="color:var(--mana)">${mana}</span></div>
+                        <span class="btn-mod">MODIFICAR</span>
+                    </div>
+                    <div class="res-row" onclick="abrirModalMod('${id}', 'oro')">
+                        <div><span class="res-icon">💰</span> <span class="res-val" style="color:var(--gold)">${oro}</span></div>
+                        <span class="btn-mod">MODIFICAR</span>
+                    </div>
+                    <div class="res-row" onclick="abrirModalMod('${id}', 'experiencia')">
+                        <div><span class="res-icon">✨</span> <span class="res-val" style="color:#aaa">${experiencia}</span></div>
+                        <span class="btn-mod">MODIFICAR</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- LÓGICA DE MODAL MODIFICAR ---
+        function abrirModalMod(id, tipo) {
+            jugadorActual = id;
+            campoActual = tipo;
+            
+            document.getElementById('modal-concepto').value = '';
+            document.getElementById('modal-titulo').innerText = `MODIFICAR ${tipo.toUpperCase()}`;
+            
+            const btnGroup = document.getElementById('modal-botones');
+            btnGroup.innerHTML = '';
+
+            let botones = [];
+            if (tipo === 'vida') botones = [-100, -50, -10, 10, 50, 100];
+            else if (tipo === 'mana') botones = [-100, -50, -10, 10, 50, 100];
+            else if (tipo === 'oro') botones = [-500, -100, -50, -10, 10, 50, 100, 500];
+            else if (tipo === 'experiencia') botones = [-500, -100, -50, -10, 10, 50, 100, 500];
+
+            botones.forEach(val => {
+                const btn = document.createElement('button');
+                btn.className = `btn-action ${val > 0 ? 'btn-pos' : 'btn-neg'}`;
+                btn.innerText = (val > 0 ? '+' : '') + val;
+                btn.onclick = () => ejecutarCambio(val);
+                btnGroup.appendChild(btn);
+            });
+
+            document.getElementById('modal-modificacion').style.display = 'flex';
+        }
+
+        function cerrarModalMod() {
+            document.getElementById('modal-modificacion').style.display = 'none';
+        }
+
+        function ejecutarCambio(cantidad) {
+            if (!jugadorActual || !campoActual) return;
+
+            const concepto = document.getElementById('modal-concepto').value.trim();
+            const id = jugadorActual;
+            const campo = campoActual;
+
+            const data = jugadoresData[id] || {};
+
+            let keyBD = campo;
+            if (data[campo] === undefined) {
+                if (campo === 'vida') keyBD = 'vidaActual';
+                if (campo === 'mana') keyBD = 'manaActual';
+                if (campo === 'experiencia') keyBD = 'experiencia';
+            }
+
+            const valActual = parseInt(data[keyBD] || 0);
+            const nuevoVal = valActual + cantidad;
+
+            // Historial
+            const ahora = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            const icon = { vida: '❤️', mana: '💧', oro: '💰', experiencia: '✨' }[campo];
+            const colorLog = cantidad > 0 ? '#2ecc71' : '#ff4444';
+            let logMsg = "";
+
+            if (concepto) {
+                logMsg = `<span style="opacity:0.6">[${ahora}]</span> <b style="color:${colorLog}">MAESTRO (${concepto}):</b> ${icon} ${cantidad > 0 ? '+' : ''}${cantidad}`;
+            } else {
+                logMsg = `<span style="opacity:0.6">[${ahora}]</span> <b style="color:${colorLog}">MAESTRO:</b> ${icon} ${cantidad > 0 ? '+' : ''}${cantidad}`;
+            }
+
+            let updates = {};
+            updates[keyBD] = nuevoVal;
+            
+            let historial = data.historial || [];
+            historial.push(logMsg);
+            if (historial.length > 50) historial.shift(); 
+            updates['historial'] = historial;
+
+            db.ref(`jugadores/${id}`).update(updates);
+            cerrarModalMod();
+        }
+    </script>
+</body>
+</html>
